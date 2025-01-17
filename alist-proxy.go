@@ -8,13 +8,15 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/alist-org/alist/v3/pkg/sign"
 )
 
 type Link struct {
-	Url    string      `json:"url"`
-	Header http.Header `json:"header"`
+	Modified time.Time `json:"modified"`
+	Created  time.Time `json:"created"`
+	RawURL   string    `json:"raw_url"`
 }
 
 type LinkResp struct {
@@ -98,21 +100,15 @@ func downHandle(w http.ResponseWriter, r *http.Request) {
 		errorResponse(w, resp.Code, resp.Message)
 		return
 	}
-	if !strings.HasPrefix(resp.Data.Url, "http") {
-		resp.Data.Url = "http:" + resp.Data.Url
+	if !strings.HasPrefix(resp.Data.RawURL, "http") {
+		resp.Data.RawURL = "http:" + resp.Data.RawURL
 	}
-	fmt.Println("proxy:", resp.Data.Url)
+	fmt.Println("proxy:", resp.Data.RawURL)
 	if err != nil {
 		errorResponse(w, 500, err.Error())
 		return
 	}
-	req2, _ := http.NewRequest(r.Method, resp.Data.Url, nil)
-	for h, val := range r.Header {
-		req2.Header[h] = val
-	}
-	for h, val := range resp.Data.Header {
-		req2.Header[h] = val
-	}
+	req2, _ := http.NewRequest(r.Method, resp.Data.RawURL, nil)
 	res2, err := HttpClient.Do(req2)
 	if err != nil {
 		errorResponse(w, 500, err.Error())
@@ -123,12 +119,36 @@ func downHandle(w http.ResponseWriter, r *http.Request) {
 	}()
 	res2.Header.Del("Access-Control-Allow-Origin")
 	res2.Header.Del("set-cookie")
+	res2.Header.Del("Cache-Control")
+	res2.Header.Del("P3P")
+	res2.Header.Del("X-NetworkStatistics")
+	res2.Header.Del("X-SharePointHealthScore")
+	res2.Header.Del("docID")
+	res2.Header.Del("X-Download-Options")
+	res2.Header.Del("CTag")
+	res2.Header.Del("X-AspNet-Version")
+	res2.Header.Del("X-DataBoundary")
+	res2.Header.Del("X-1DSCollectorUrl")
+	res2.Header.Del("X-AriaCollectorURL")
+	res2.Header.Del("SPRequestGuid")
+	res2.Header.Del("request-id")
+	res2.Header.Del("MS-CV")
+	res2.Header.Del("Alt-Svc")
+	res2.Header.Del("Strict-Transport-Security")
+	res2.Header.Del("X-FRAME-OPTIONS")
+	res2.Header.Del("Content-Security-Policy")
+	res2.Header.Del("X-Powered-By")
+	res2.Header.Del("MicrosoftSharePointTeamServices")
+	res2.Header.Del("X-MS-InvokeApp")
+	res2.Header.Del("X-Cache")
+	res2.Header.Del("X-MSEdge-Ref")
 	for h, v := range res2.Header {
 		w.Header()[h] = v
 	}
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
 	w.Header().Add("Access-Control-Allow-Headers", "range")
+	w.Header().Add("Last-Modified", resp.Data.Modified.Format(time.RFC1123))
 	w.WriteHeader(res2.StatusCode)
 	_, err = io.Copy(w, res2.Body)
 	if err != nil {

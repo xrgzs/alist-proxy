@@ -63,7 +63,7 @@ async function handleDownload(request) {
     resp2.headers.set("Access-Control-Allow-Origin", origin);
     return resp2;
   }
-  let resp = await fetch(`${ADDRESS}/api/fs/link`, {
+  let resp = await fetch(`${ADDRESS}/api/fs/get`, {
     method: "POST",
     headers: {
       "content-type": "application/json;charset=UTF-8",
@@ -77,14 +77,7 @@ async function handleDownload(request) {
   if (res.code !== 200) {
     return new Response(JSON.stringify(res));
   }
-  request = new Request(res.data.url, request);
-  if (res.data.header) {
-    for (const k in res.data.header) {
-      for (const v of res.data.header[k]) {
-        request.headers.set(k, v);
-      }
-    }
-  }
+  request = new Request(res.data.raw_url, request);
   let response = await fetch(request);
   while (response.status >= 300 && response.status < 400) {
     const location = response.headers.get("Location");
@@ -102,8 +95,32 @@ async function handleDownload(request) {
   }
   response = new Response(response.body, response);
   response.headers.delete("set-cookie");
+  response.headers.delete("Cache-Control");
+  response.headers.delete("P3P");
+  response.headers.delete("X-NetworkStatistics");
+  response.headers.delete("X-SharePointHealthScore");
+  response.headers.delete("docID");
+  response.headers.delete("X-Download-Options");
+  response.headers.delete("CTag");
+  response.headers.delete("X-AspNet-Version");
+  response.headers.delete("X-DataBoundary");
+  response.headers.delete("X-1DSCollectorUrl");
+  response.headers.delete("X-AriaCollectorURL");
+  response.headers.delete("SPRequestGuid");
+  response.headers.delete("request-id");
+  response.headers.delete("MS-CV");
+  response.headers.delete("Alt-Svc");
+  response.headers.delete("Strict-Transport-Security");
+  response.headers.delete("X-FRAME-OPTIONS");
+  response.headers.delete("Content-Security-Policy");
+  response.headers.delete("X-Powered-By");
+  response.headers.delete("MicrosoftSharePointTeamServices");
+  response.headers.delete("X-MS-InvokeApp");
+  response.headers.delete("X-Cache");
+  response.headers.delete("X-MSEdge-Ref");
   response.headers.set("Access-Control-Allow-Origin", origin);
   response.headers.append("Vary", "Origin");
+  response.headers.append("Last-Modified", new Date(res.data.modified).toUTCString());
   return response;
 }
 
